@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { adminClient, HttpError, readJson, respond } from '@/lib/admin-http';
-import { assertCurrent, deleteSound, details, getSound, soundColumns, updateSound } from '@/lib/library';
+import { assertCurrent, copySound, deleteSound, details, getSound, soundColumns, updateSound } from '@/lib/library';
 import { SOURCE_BUCKET, sourcePath, uploadSpec, type Sound } from '@/lib/sound';
 import { resumableEndpoint } from '@/lib/supabase/config';
 
@@ -15,6 +15,7 @@ const inputSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('sounds.upload'), id: uuid.optional(), fileName: z.string().min(1).max(255), bytes: z.number().int() }),
   z.object({ action: z.literal('sounds.details'), id: uuid }),
   z.object({ action: z.literal('sounds.list') }),
+  z.object({ action: z.literal('sounds.copy'), id: uuid, revision: uuid }),
   z.object({ action: z.literal('sounds.rename'), id: uuid, revision: uuid, name: soundName, categoryId: uuid }),
   z.object({ action: z.literal('sounds.delete'), id: uuid, revision: uuid }),
 ]);
@@ -73,6 +74,8 @@ export function POST(request: NextRequest) {
       }
       case 'sounds.details':
         return details(client, await getSound(client, input.id));
+      case 'sounds.copy':
+        return copySound(client, await getSound(client, input.id), input.revision);
       case 'sounds.rename': {
         const sound = await getSound(client, input.id);
         assertCurrent(sound, input.revision);

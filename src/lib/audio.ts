@@ -21,12 +21,12 @@ const MAX_BUFFER = 8 * 1024 * 1024;
 
 export class AudioError extends Error {}
 
-export async function inspectAudio(file: string, kind: SourceKind) {
+export async function inspectAudio(file: string, kind: SourceKind, signal?: AbortSignal) {
   try {
     const { stdout } = await exec(process.env.FFPROBE_PATH || (process.platform === 'darwin' ? 'ffprobe' : ffprobe.path), [
       '-v', 'error', ...inputOptions(kind), '-select_streams', 'a:0',
       '-show_entries', 'format=format_name,duration:stream=codec_name,duration', '-of', 'json', file,
-    ], { timeout: 20_000 });
+    ], { timeout: 20_000, signal });
     const { format, streams } = JSON.parse(stdout);
     const stream = streams?.[0];
     const codec: string = stream?.codec_name ?? '';
@@ -42,7 +42,7 @@ export async function inspectAudio(file: string, kind: SourceKind) {
       '-v', 'error', '-nostdin', '-xerror', ...inputOptions(kind), '-i', file, '-map', '0:a:0',
       '-t', String((MAX_SOURCE_MS + 1000) / 1000), '-ac', '1', '-ar', String(SAMPLE_RATE),
       '-f', 's16le', 'pipe:1',
-    ], { encoding: 'buffer', maxBuffer: MAX_BUFFER, timeout: 75_000 });
+    ], { encoding: 'buffer', maxBuffer: MAX_BUFFER, timeout: 75_000, signal });
     const samples = pcm.length / 2;
     const durationMs = Math.floor(samples * 1_000 / SAMPLE_RATE);
     if (durationMs > MAX_SOURCE_MS) throw new AudioError('ต้นฉบับต้องยาวไม่เกิน 30 นาที');

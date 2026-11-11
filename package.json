@@ -6,6 +6,8 @@
     "node": ">=22.18"
   },
   "scripts": {
+    "postinstall": "node scripts/install-ytdlp.mjs",
+    "setup:youtube": "node scripts/install-ytdlp.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

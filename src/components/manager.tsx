@@ -2,10 +2,11 @@
 
 import { useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { AudioLines, LogOut, Plus, Upload } from 'lucide-react';
+import { AudioLines, Download, Link2, LogOut, Plus, Upload } from 'lucide-react';
 import { adminRequest } from '@/lib/request';
 import { formatTime, SOURCE_BUCKET, uploadSpec, type AudioDetails, type Category, type Sound, type UploadTicket } from '@/lib/sound';
 import { SoundEditor } from './sound-editor';
+import { youtubeVideoUrl } from '@/lib/youtube-url';
 
 type Selected = { sound: Sound; details: AudioDetails };
 
@@ -48,6 +49,7 @@ export function Manager({ initialCategories, initialSounds }: { initialCategorie
   const [categoryEdit, setCategoryEdit] = useState<Category | null>(null);
   const [categoryName, setCategoryName] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const resume = useRef<Sound | null>(null);
 
@@ -105,17 +107,43 @@ export function Manager({ initialCategories, initialSounds }: { initialCategorie
     });
   }
 
-  function save(name: string, categoryId: string, startMs: number, endMs: number) {
+  function importYoutube(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const url = youtubeVideoUrl(youtubeUrl);
+    if (!url) { setError('วางลิงก์วิดีโอ YouTube หรือ youtu.be ที่ถูกต้อง'); return; }
+    void run('youtube', async () => {
+      try {
+        const imported = await adminRequest<Selected>('youtube', { url });
+        upsert(imported.sound);
+        setSelected(imported);
+        setYoutubeUrl('');
+        requestAnimationFrame(() => document.getElementById('sound-editor')?.scrollIntoView({ block: 'start' }));
+      } catch (failure) {
+        const fresh = await adminRequest<Sound[]>('library', { action: 'sounds.list' }).catch(() => null);
+        if (fresh) setSounds(fresh);
+        throw failure;
+      }
+    });
+  }
+
+  function save(name: string, categoryId: string, startMs: number, endMs: number, asNew = false) {
     if (!selected) return;
-    const { sound } = selected;
     void run('save', async () => {
+      let { sound, details } = selected;
+      if (asNew && sound.status === 'ready') {
+        const copied = await adminRequest<Selected>('library', { action: 'sounds.copy', id: sound.id, revision: sound.revision });
+        sound = copied.sound;
+        details = copied.details;
+        upsert(sound);
+        setSelected({ sound: { ...sound, name, category_id: categoryId, trim_start_ms: startMs, trim_end_ms: endMs }, details });
+      }
       const meta = { id: sound.id, revision: sound.revision, name, categoryId };
       const saved = sound.status === 'ready' && sound.trim_start_ms === startMs && sound.trim_end_ms === endMs
         ? await adminRequest<Sound>('library', { action: 'sounds.rename', ...meta })
         : await adminRequest<Sound>('audio', { action: 'save', ...meta, startMs, endMs });
       upsert(saved);
-      setSelected(null);
-      setMessage('บันทึกเสียงแล้ว');
+      setSelected({ sound: saved, details });
+      setMessage(asNew ? 'บันทึกเป็นเสียงใหม่แล้ว' : 'บันทึกเสียงแล้ว');
     });
   }
 
@@ -174,6 +202,18 @@ export function Manager({ initialCategories, initialSounds }: { initialCategorie
 
       <div className="admin-grid">
         <div className="admin-main">
+          <section className="panel" aria-labelledby="youtube-title" aria-busy={busy === 'youtube'}>
+            <div className="panel-heading"><div><h2 id="youtube-title">นำเข้าเสียงจาก YouTube</h2>
+              <p>วางลิงก์วิดีโอสาธารณะไม่เกิน 30 นาที แล้วฟังและเลือกช่วงก่อนบันทึก</p></div></div>
+            <form className="youtube-form" onSubmit={importYoutube}>
+              <label>ลิงก์ YouTube<input type="url" value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)}
+                placeholder="https://www.youtube.com/watch?v=…" maxLength={2048} required disabled={locked} /></label>
+              <button className="button button-primary" type="submit" disabled={locked || !youtubeUrl.trim()}>
+                <Link2 size={17} /> {busy === 'youtube' ? 'กำลังนำเข้า…' : 'นำเข้าเสียง'}
+              </button>
+            </form>
+            {busy === 'youtube' && <p className="hint import-status" role="status">กำลังดึงและเตรียมเสียงจาก YouTube อาจใช้เวลาสักครู่ กรุณาเปิดหน้านี้ไว้</p>}
+          </section>
           <section className="panel">
             <div className="panel-heading"><div><h2>อัปโหลดเสียง</h2><p>MP3, WAV หรือ M4A · ไม่เกิน 50 MB และ 30 นาที</p></div></div>
             <input ref={fileInput} hidden type="file" accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/mp4"
@@ -210,6 +250,8 @@ export function Manager({ initialCategories, initialSounds }: { initialCategorie
                         `${categories.find((category) => category.id === sound.category_id)?.name ?? ''} · ${formatTime(sound.duration_ms ?? 0)}`}</span>
                     </div>
                     <div className="row-actions">
+                      {sound.status === 'ready' && <a className="button button-quiet icon-button"
+                        href={`/api/admin/download?id=${sound.id}`} aria-label={`ดาวน์โหลด ${sound.name}`}><Download size={16} /></a>}
                       {sound.status !== 'deleting' && <button className="button button-quiet" disabled={locked}
                         onClick={() => void run(sound.source_duration_ms ? 'details' : 'analyze', () => openSound(sound))}>
                         {sound.source_duration_ms ? 'แก้ไข' : 'วิเคราะห์ไฟล์'}

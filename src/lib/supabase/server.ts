@@ -3,10 +3,13 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { sessionCookieOptions, supabaseConfig } from './config';
 
-export async function createSessionClient() {
+export async function createSessionClient(signal?: AbortSignal) {
   const store = await cookies();
   const { url, key } = supabaseConfig();
   return createServerClient(url, key, {
+    ...(signal ? { global: { fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, {
+      ...init, signal: AbortSignal.any([signal, AbortSignal.timeout(20_000), ...(init?.signal ? [init.signal] : [])]),
+    }) } } : {}),
     cookieOptions: sessionCookieOptions,
     cookies: {
       getAll: () => store.getAll(),

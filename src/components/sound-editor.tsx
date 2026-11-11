@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Play, Square, X } from 'lucide-react';
+import { Copy, Download, Play, Square, X } from 'lucide-react';
 import { audioRange, formatTime, MAX_CLIP_MS, type AudioDetails, type Category, type Sound } from '@/lib/sound';
 import { Waveform } from './waveform';
 
@@ -10,7 +10,7 @@ export function SoundEditor({ sound, details, categories, busy, save, close, rel
   details: AudioDetails;
   categories: Category[];
   busy: boolean;
-  save: (name: string, categoryId: string, startMs: number, endMs: number) => void;
+  save: (name: string, categoryId: string, startMs: number, endMs: number, asNew?: boolean) => void;
   close: () => void;
   reloadAudio: () => void;
 }) {
@@ -72,7 +72,8 @@ export function SoundEditor({ sound, details, categories, busy, save, close, rel
     event.preventDefault();
     if (!valid || !name.trim() || !categoryId) return;
     stop();
-    save(name.trim(), categoryId, startMs, endMs);
+    const asNew = ((event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.value === 'new';
+    save(name.trim(), categoryId, startMs, endMs, asNew);
   }
 
   return (
@@ -106,13 +107,19 @@ export function SoundEditor({ sound, details, categories, busy, save, close, rel
           <p className="form-error" role="status">เลือกช่วง 0.25 วินาทีถึง 2 นาทีภายในต้นฉบับ</p>}
         {error && <p className="form-error" role="alert">ฟังต้นฉบับไม่ได้ <button type="button" className="text-button" onClick={() => { setError(false); reloadAudio(); }}>โหลดต้นฉบับใหม่</button></p>}
         <div className="editor-actions">
+          {sound.status === 'ready' && <a className="button" href={`/api/admin/download?id=${sound.id}`}>
+            <Download size={16} /> ดาวน์โหลดคลิปที่บันทึก</a>}
           <button className="button" type="button" disabled={!valid || busy} onClick={preview}>
             {playing ? <Square size={16} /> : <Play size={16} />} {playing ? 'หยุดพรีวิว' : 'ฟังช่วงที่เลือก'}
           </button>
           <button className="button button-primary" type="submit" disabled={!valid || !categoryId || busy}>
             {busy ? 'กำลังบันทึก…' : 'บันทึกเสียง'}
           </button>
+          {sound.status === 'ready' && <button className="button" type="submit" value="new" disabled={!valid || !categoryId || busy}>
+            <Copy size={16} /> บันทึกเป็นเสียงใหม่
+          </button>}
         </div>
+        {sound.status === 'ready' && <p className="hint">เลือกช่วงอื่นแล้วกด “บันทึกเป็นเสียงใหม่” เพื่อเก็บคลิปเดิมไว้ หรือ “บันทึกเสียง” เพื่อแก้ไขคลิปนี้</p>}
       </form>
     </section>
   );

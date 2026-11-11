@@ -154,6 +154,9 @@ input:not([type=file]), select {
 }
 .category-form { display: flex; align-items: flex-end; gap: .45rem; flex-wrap: wrap; margin-bottom: .8rem; }
 .category-form label { flex: 1 1 8rem; }
+.youtube-form { display: flex; align-items: flex-end; flex-wrap: wrap; gap: .7rem; }
+.youtube-form label { flex: 1 1 18rem; }
+.import-status { margin-top: .8rem; }
 .category-panel, .editor { scroll-margin-top: 1rem; }
 .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }
 .editor-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; }

@@ -1,4 +1,4 @@
-export async function adminRequest<T>(endpoint: 'login' | 'library' | 'audio', body: object, method = 'POST'): Promise<T> {
+export async function adminRequest<T>(endpoint: 'login' | 'library' | 'audio' | 'youtube', body: object, method = 'POST'): Promise<T> {
   const response = await fetch(`/api/admin/${endpoint}`, {
     method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });

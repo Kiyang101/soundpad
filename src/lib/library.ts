@@ -4,6 +4,9 @@ import { CLIP_BUCKET, SOURCE_BUCKET, sourcePath, type AudioDetails, type Sound }
 import type { createSessionClient } from './supabase/server';
 
 type Client = Awaited<ReturnType<typeof createSessionClient>>;
+type SourceMetadata = Pick<Sound, 'name' | 'source_name' | 'source_kind' | 'source_bytes' | 'source_duration_ms'> & {
+  waveform: number[]; category_id?: string | null;
+};
 
 export const soundColumns = 'id,status,name,category_id,source_name,source_kind,source_bytes,source_duration_ms,duration_ms,trim_start_ms,trim_end_ms,clip_path,revision';
 
@@ -46,6 +49,44 @@ export async function details(client: Client, sound: Sound): Promise<AudioDetail
     peaks: data.waveform as number[],
     sourceUrl: await originalUrl(client, sound),
   };
+}
+
+export async function createSourceSound(
+  client: Client, metadata: SourceMetadata, store: (sound: Sound) => Promise<void>,
+  cleanupClient: () => Promise<Client> = async () => client,
+) {
+  const id = randomUUID();
+  let sound: Sound | undefined;
+  try {
+    const { data, error } = await client.from('sounds').insert({ ...metadata, id }).select(soundColumns).single();
+    if (error) throw error;
+    sound = data as Sound;
+    await store(sound);
+    return { sound, details: await details(client, sound) };
+  } catch (failure) {
+    try {
+      // Cleanup must still work after the import's request signal has expired.
+      const cleanup = await cleanupClient();
+      const created = sound ?? await getSound(cleanup, id).catch(() => null);
+      if (created) await deleteSound(cleanup, created, created.revision);
+    } catch { console.error('Soundpad new source cleanup failed', id); }
+    throw failure;
+  }
+}
+
+export async function copySound(client: Client, sound: Sound, revision: string) {
+  assertCurrent(sound, revision);
+  if (sound.status !== 'ready' || sound.source_duration_ms === null) throw new HttpError(409, 'บันทึกเสียงแรกก่อนตัดเป็นเสียงใหม่');
+  const { peaks } = await details(client, sound);
+  return createSourceSound(client, {
+    name: sound.name, category_id: sound.category_id, source_name: sound.source_name,
+    source_kind: sound.source_kind, source_bytes: sound.source_bytes,
+    source_duration_ms: sound.source_duration_ms, waveform: peaks,
+  }, async (copy) => {
+    const { error } = await client.storage.from(SOURCE_BUCKET).copy(sourcePath(sound), sourcePath(copy));
+    if (error) throw error;
+    assertCurrent(await getSound(client, sound.id), revision);
+  });
 }
 
 export async function deleteSound(client: Client, sound: Sound, revision: string) {

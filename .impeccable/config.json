@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "src/app/globals.css"
+        ],
+        "createdAt": "2026-11-11T14:52:45.525Z",
+        "reason": "Agent: existing HEAD .pad uses a dark 4px bottom bevel with a 2px active press and offset shadow to represent physical soundboard buttons; preserve the incumbent control design."
+      }
+    ]
+  }
+}

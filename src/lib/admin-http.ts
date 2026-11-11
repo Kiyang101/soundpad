@@ -39,7 +39,8 @@ export async function adminClient() {
 
 export async function respond(run: () => Promise<unknown>) {
   try {
-    return json(await run());
+    const result = await run();
+    return result instanceof Response ? result : json(result);
   } catch (error) {
     if (error instanceof HttpError) return json({ error: error.message }, error.status);
     if (error instanceof z.ZodError) return json({ error: 'ข้อมูลไม่ถูกต้อง กรุณาตรวจแล้วลองอีกครั้ง' }, 400);

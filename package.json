@@ -8,6 +8,7 @@
   "scripts": {
     "postinstall": "node scripts/install-ytdlp.mjs",
     "setup:youtube": "node scripts/install-ytdlp.mjs",
+    "worker:youtube": "node --env-file=.env.worker.local scripts/youtube-worker.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

@@ -17,8 +17,12 @@ The same selected recording was previously downloaded, converted, decoded and im
 - Unit tests: 6 pass. Lint and typecheck pass. Production diagnostic deployment is Ready; repeated authenticated UI import yields the log above.
 - Preserve admin authentication, same-origin checks, canonical URL validation, file/time limits, private originals and existing sounds. No browser cookies exported, Google credentials added, or authentication controls bypassed.
 
-## Next decision
+## Selected workaround
 
 Keep the current website/editor, and run the downloader behind an authenticated endpoint outside Vercel. The known-working Mac is an option but must stay on; an independently hosted worker requires a suitable host and a successful download test before relying on it. Moving to another datacenter alone is not proof that YouTube will accept its requests.
 
-The user has been asked to choose the execution location before creating infrastructure, exposing a new endpoint or adding costs. No worker endpoint or paid service has been provisioned yet.
+The user chose this Mac as the temporary worker. An authenticated loopback service now receives only canonical YouTube video jobs through a temporary Cloudflare HTTPS tunnel. Its key is stored in a Git-ignored mode-0600 file and Vercel sensitive configuration. No paid host or automatic startup/power settings were created.
+
+A real import through the public tunnel returned the selected Den-O recording and decoded to 158139 ms. Eight unit tests, lint, typecheck and build pass, including auth, busy rejection, redirect refusal, chunked size limits and remote cancellation. Static review found no Critical/Important issue. Production rollout and authenticated editor verification remain pending.
+
+The Mac must remain awake with both worker and tunnel running. Restarting the Quick Tunnel changes its URL, requiring a Vercel configuration update and redeployment. This is temporary hosting without an uptime guarantee; existing saved clips remain on Supabase and do not depend on the Mac for playback.

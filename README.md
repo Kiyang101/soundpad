@@ -22,6 +22,19 @@
 
 บน Vercel ให้ใช้ Linux x64 build ตามปกติ `next.config.ts` รวมตัวดาวน์โหลดกับ FFmpeg/FFprobe ใน route นำเข้าแล้ว โดย route นี้มีเพดาน 300 วินาที อย่านำ `.tools/` ที่สร้างบน macOS ไปใช้บน Linux โดยข้ามขั้นติดตั้ง ต้องทดสอบนำเข้าจาก deployment จริงก่อนเปิดใช้: YouTube อาจปฏิเสธ IP ของเซิร์ฟเวอร์หรือเปลี่ยนข้อกำหนดการดึงเสียง แม้ลิงก์จะเปิดดูใน browser ได้ หากขึ้นข้อความปฏิเสธ ให้ลองภายหลังหรืออัปโหลดไฟล์เสียงแทน ไม่ใช้การข้ามล็อกอินหรือ access controls
 
+### ใช้ Mac เป็นตัวดึงให้ Vercel ชั่วคราว
+
+เมื่อ Vercel ถูก YouTube ปฏิเสธ สามารถให้เว็บส่งงานมาที่ Mac ผ่าน worker ที่มีคีย์ส่วนตัวได้ ตัวช่วยรับเฉพาะลิงก์ YouTube ทำครั้งละหนึ่งงาน แล้วส่ง MP3 กลับไปให้เว็บวิเคราะห์และเก็บตามเดิม ไม่ต้องใส่รหัส Supabase หรือบัญชี Google ในตัวช่วย
+
+1. สร้าง `.env.worker.local` (Git ไม่ติดตาม) ใส่ `YOUTUBE_WORKER_KEY` ที่สุ่มอย่างปลอดภัยอย่างน้อย 32 ตัวอักษร และ `PORT=8787` เช่นสร้างคีย์ด้วย `node -e "console.log(require('node:crypto').randomBytes(36).toString('base64url'))"` เก็บคีย์เป็นความลับ
+2. รัน `npm run worker:youtube` ตัวช่วยฟังเฉพาะ `127.0.0.1:8787`
+3. ติดตั้ง Cloudflare Tunnel ด้วย `brew install cloudflared` แล้วเปิดอีก terminal รัน `cloudflared tunnel --url http://127.0.0.1:8787 --no-autoupdate`
+4. ตั้ง `YOUTUBE_WORKER_URL` ใน Vercel production เป็น URL HTTPS ที่ tunnel แสดง และ `YOUTUBE_WORKER_KEY` เป็นคีย์เดียวกับ Mac โดยตั้งคีย์เป็น sensitive แล้ว deploy ใหม่ ห้ามใส่คีย์ในตัวแปร `NEXT_PUBLIC_*`
+
+ต้องเปิด Mac และทั้งสองโปรเซสไว้ เครื่องหลับหรือปิดตัวช่วยแล้วนำเข้าจาก YouTube จะไม่ได้ ส่วนคลิปที่บันทึกไว้ยังเล่นได้ตามปกติ หยุดด้วย Ctrl+C ในแต่ละ terminal เมื่อต้องการเปิดใหม่ให้ทำขั้นตอน 2–4 อีกครั้ง เพราะ Quick Tunnel เปลี่ยน URL ทุกครั้งและไม่มี uptime guarantee จึงเหมาะกับการใช้ชั่วคราว การย้ายไปโฮสต์ถาวรควรทดสอบดึงจริงก่อน
+
+หากต้องการทดสอบเว็บในเครื่องผ่าน worker ให้ใส่ URL กับคีย์ใน `.env.local` ด้วย ถ้าไม่ตั้งทั้งสองค่าจะใช้ตัวดึงใน process เดิม หากตั้งเพียงค่าใดค่าหนึ่งจะแจ้งให้ตั้งค่าครบ การเชื่อมต่อบังคับ HTTPS ยกเว้น loopback ใน development/test และไม่ส่งคีย์ตาม redirect
+
 ## สร้างบัญชีแอดมิน
 
 ใช้สคริปต์ครั้งเดียวต่อ environment จากเครื่องของผู้ดูแล ตั้ง `SUPABASE_URL`, `SUPABASE_SECRET_KEY` และ `SOUNDPAD_ADMIN_EMAIL` ใน shell สำหรับงานนี้ แล้วป้อนรหัสผ่านอย่างน้อย 12 ตัวอักษรแบบไม่แสดงบนหน้าจอ
@@ -40,7 +53,7 @@ unset SOUNDPAD_ADMIN_PASSWORD SUPABASE_SECRET_KEY
 ## Supabase และ Vercel
 
 - ใช้ migration ใน `supabase/migrations` ผ่าน `supabase db push --linked --dry-run` ก่อนนำขึ้นโปรเจกต์ที่ link ไว้ ปิด **Allow new users to sign up** และตั้งเพดาน Storage ของโปรเจกต์อย่างน้อย 50 MB
-- ใส่ตัวแปรทั้งสี่จาก `.env.example` ใน environment ของ Vercel ที่ต้องการใช้ เลือก Node.js และเปิด Fluid compute สำหรับ Route Handler ตัดเสียง
+- ใส่ตัวแปร Supabase และแอดมินทั้งสี่จาก `.env.example` ใน environment ของ Vercel ที่ต้องการใช้ เพิ่มตัวแปร worker เฉพาะเมื่อใช้ตัวช่วยแยก เลือก Node.js และเปิด Fluid compute สำหรับ Route Handler ตัดเสียง
 - ตั้ง Vercel Firewall ให้จำกัด `POST /api/admin/login` ที่ 5 ครั้งต่อนาทีต่อ IP โค้ดแอปมีตัวนับแยกแต่ละ process สำหรับการรันบนเครื่อง
 - ไฟล์ต้นฉบับอยู่ใน `soundpad-sources` แบบส่วนตัว คลิป MP3 ที่ตัดแล้วอยู่ใน `soundpad-clips` และเล่นจาก URL สาธารณะ เมื่อบันทึกช่วงใหม่จะเปลี่ยนไปใช้ URL คลิปใหม่ หากลบไม่ครบ ให้กด **ลองลบอีกครั้ง** จากหน้าแอดมิน
 - ถ้าอัปโหลดหลุด ให้เลือกไฟล์เดิมจากรายการ **แบบร่าง** เพื่ออัปโหลดต่อ ถ้าส่งไฟล์ครบแล้วให้กด **วิเคราะห์ไฟล์**

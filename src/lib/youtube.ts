@@ -7,10 +7,16 @@ import ffmpeg from 'ffmpeg-static';
 import { AudioError } from './audio.ts';
 import { MAX_SOURCE_BYTES, MAX_SOURCE_MS } from './sound.ts';
 import { youtubeVideoUrl } from './youtube-url.ts';
+import { importRemoteYouTube } from './youtube-remote.ts';
 
 const exec = promisify(execFile);
 
 export async function importYouTube<T>(input: string, run: (source: string, title: string, signal: AbortSignal) => Promise<T>, signal?: AbortSignal) {
+  return process.env.YOUTUBE_WORKER_URL || process.env.YOUTUBE_WORKER_KEY
+    ? importRemoteYouTube(input, run, signal) : downloadYouTube(input, run, signal);
+}
+
+export async function downloadYouTube<T>(input: string, run: (source: string, title: string, signal: AbortSignal) => Promise<T>, signal?: AbortSignal) {
   const url = youtubeVideoUrl(input);
   if (!url) throw new AudioError('วางลิงก์วิดีโอ YouTube หรือ youtu.be ที่ถูกต้อง');
   const dir = await mkdtemp(join(tmpdir(), 'soundpad-youtube-'));

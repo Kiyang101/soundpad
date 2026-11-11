@@ -23,6 +23,8 @@ Keep the current website/editor, and run the downloader behind an authenticated 
 
 The user chose this Mac as the temporary worker. An authenticated loopback service now receives only canonical YouTube video jobs through a temporary Cloudflare HTTPS tunnel. Its key is stored in a Git-ignored mode-0600 file and Vercel sensitive configuration. No paid host or automatic startup/power settings were created.
 
-A real import through the public tunnel returned the selected Den-O recording and decoded to 158139 ms. Eight unit tests, lint, typecheck and build pass, including auth, busy rejection, redirect refusal, chunked size limits and remote cancellation. Static review found no Critical/Important issue. Production rollout and authenticated editor verification remain pending.
+A real import through the public tunnel returned the selected Den-O recording and decoded to 158139 ms. Eight unit tests, lint, typecheck and build pass, including auth, busy rejection, redirect refusal, chunked size limits and remote cancellation. Static review found no Critical/Important issue. Production rollout and authenticated editor verification succeeded.
+
+Production code commit: `e6c78b8`, pushed to `build/soundpad`. Deployment `dpl_3UJoCih4g6Ec4s383iQmmnAgJn2j` is Ready at https://soundpad-lake.vercel.app. The authenticated admin imported the selected recording into a 2:38 waveform and activated preview for 0–11 seconds. The intended source remains a private draft, with no test clips published and the existing sound preserved. Public homepage returns HTTP 200; anonymous import returns HTTP 401. Screenshot: `/tmp/soundpad-youtube-vercel-worker.png`.
 
 The Mac must remain awake with both worker and tunnel running. Restarting the Quick Tunnel changes its URL, requiring a Vercel configuration update and redeployment. This is temporary hosting without an uptime guarantee; existing saved clips remain on Supabase and do not depend on the Mac for playback.

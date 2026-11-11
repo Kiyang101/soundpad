@@ -39,7 +39,7 @@ Files: `src/lib/youtube.ts`, `tests/youtube-import.test.ts`, `.env.example`, `RE
 ### Task 3: Hosting and rollout
 - [x] User selected this Mac; validate download through a temporary HTTPS tunnel before rollout.
 - [x] Run the authenticated loopback worker and temporary tunnel without paid services; configure server-only production values securely.
-- [ ] Verify authenticated import on Vercel with the selected recording; preserve existing production sounds; commit/push/deploy as already authorized.
+- [x] Commit/push `e6c78b8`; production deployment `dpl_3UJoCih4g6Ec4s383iQmmnAgJn2j` is Ready. Authenticated UI imported the selected recording into a 2:38 waveform and previewed 0–11 seconds. Leave the intended source as a private draft; preserve the existing sound. Anonymous import remains HTTP 401.
 
 ## Execution ledger
 

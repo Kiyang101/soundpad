@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { AudioLines, CircleAlert, Play, Square } from 'lucide-react';
+import { AudioLines, CircleAlert, Play, Repeat2, Square } from 'lucide-react';
 import { formatTime, type Category, type Pad } from '@/lib/sound';
 
 const tones = ['amber', 'cyan', 'lavender', 'green'] as const;
@@ -13,6 +13,7 @@ export function Board({ categories, pads, unavailable }: { categories: Category[
   const [category, setCategory] = useState('');
   const [playback, setPlayback] = useState<Playback | null>(null);
   const [progress, setProgress] = useState(0);
+  const [loop, setLoop] = useState(false);
   const visible = category ? pads.filter((pad) => pad.categoryId === category) : pads;
   const categoryById = new Map(categories.map((item, index) => [item.id, { ...item, tone: tones[index % tones.length] }]));
   const isActive = Boolean(playback && playback.status !== 'error');
@@ -46,7 +47,7 @@ export function Board({ categories, pads, unavailable }: { categories: Category[
 
   return (
     <>
-      <audio ref={player} preload="none"
+      <audio ref={player} preload="none" loop={loop}
         onEnded={(event) => { if (event.currentTarget.ended) stop(); }}
         onTimeUpdate={(event) => {
           if (playback?.status === 'playing') {
@@ -66,14 +67,20 @@ export function Board({ categories, pads, unavailable }: { categories: Category[
           <div aria-live="polite" className="deck-copy">
             <span className="deck-status">{playback?.status === 'error' ? 'เล่นไม่สำเร็จ' :
               playback?.status === 'loading' ? 'กำลังโหลดเสียง' :
-              playback ? 'กำลังเล่น' : 'พร้อมเล่น'}</span>
+              playback ? (loop ? 'กำลังเล่นวนซ้ำ' : 'กำลังเล่น') : 'พร้อมเล่น'}</span>
             <p>{playback?.pad.name ?? 'แตะแพดเพื่อเล่นเสียง'}</p>
             {playback?.status === 'error' && <button className="text-button" type="button" onClick={() => window.location.reload()}>โหลดคลังใหม่</button>}
           </div>
         </div>
-        <button className="button button-stop" type="button" onClick={stop} disabled={!isActive}>
-          <Square size={15} fill="currentColor" aria-hidden="true" /> หยุด
-        </button>
+        <div className="deck-controls">
+          <button className={`button${loop ? ' button-primary' : ''}`} type="button" aria-pressed={loop}
+            onClick={() => setLoop((value) => !value)} title="เล่นเสียงที่เลือกซ้ำจนกดหยุด">
+            <Repeat2 size={17} aria-hidden="true" /> วนซ้ำ
+          </button>
+          <button className="button" type="button" onClick={stop} disabled={!isActive}>
+            <Square size={15} fill="currentColor" aria-hidden="true" /> หยุด
+          </button>
+        </div>
         <div className="deck-progress" aria-hidden="true"><span style={{ width: `${progress * 100}%` }} /></div>
       </section>
 

@@ -24,6 +24,8 @@ test('admin uploads, previews, publishes, re-trims and deletes; visitors filter 
   const files = [join(dir, 'first.wav'), join(dir, 'second.m4a')];
   const playback = await browser.newContext({ ...info.project.use });
   try {
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'วนซ้ำ', exact: true })).toHaveAttribute('aria-pressed', 'false', { timeout: 2000 });
     await Promise.all([
       exec('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'sine=f=440:d=8', '-c:a', 'pcm_s16le', files[0]]),
       exec('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'sine=f=660:d=8', '-c:a', 'aac', files[1]]),
@@ -73,10 +75,22 @@ test('admin uploads, previews, publishes, re-trims and deletes; visitors filter 
     const padA = publicPage.getByRole('button', { name: new RegExp(clipA) });
     const padB = publicPage.getByRole('button', { name: new RegExp(clipB) });
     const player = publicPage.locator('audio');
+    const repeat = publicPage.getByRole('button', { name: 'วนซ้ำ', exact: true });
+    await repeat.tap();
+    await expect(repeat).toHaveAttribute('aria-pressed', 'true');
     await padA.tap();
     await expect(padA).toHaveAttribute('data-status', 'playing');
     const originalClip = await player.getAttribute('src');
     await expect.poll(() => player.evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeGreaterThan(0.4);
+    await player.evaluate((audio: HTMLAudioElement) => { audio.currentTime = audio.duration - 0.15; });
+    await expect.poll(() => player.evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeLessThan(0.7);
+    await expect(padA).toHaveAttribute('data-status', 'playing');
+    await expect.poll(() => player.evaluate((audio: HTMLAudioElement) => audio.paused)).toBe(false);
+    await repeat.tap();
+    await expect(repeat).toHaveAttribute('aria-pressed', 'false');
+    await player.evaluate((audio: HTMLAudioElement) => { audio.currentTime = audio.duration - 0.15; });
+    await expect(publicPage.getByRole('button', { name: 'หยุด', exact: true })).toBeDisabled();
+    await repeat.tap();
     await padA.tap();
     await expect.poll(() => player.evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeLessThan(0.4);
     await padB.tap();
@@ -86,6 +100,7 @@ test('admin uploads, previews, publishes, re-trims and deletes; visitors filter 
       players.filter((audio) => !(audio as HTMLAudioElement).paused).length)).toBe(1);
     await publicPage.getByRole('button', { name: 'หยุด', exact: true }).tap();
     await expect.poll(() => player.evaluate((audio: HTMLAudioElement) => audio.paused)).toBe(true);
+    await expect(player).not.toHaveAttribute('src');
 
     await page.getByRole('listitem').filter({ hasText: clipA }).getByRole('button', { name: 'แก้ไข' }).click();
     await page.getByLabel('จบ (วินาที)').fill('7');

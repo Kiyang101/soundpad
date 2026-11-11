@@ -10,7 +10,8 @@ import { inspectAudio } from '../src/lib/audio.ts';
 
 const exec = promisify(execFile);
 
-test('imports decoded audio, rejects invalid upstreams and cleans temporary files after failures', async () => {
+test('imports decoded audio, rejects invalid upstreams and cleans temporary files after failures', async (t) => {
+  const diagnostics = t.mock.method(console, 'error', () => {});
   const dir = await mkdtemp(join(tmpdir(), 'youtube-fixture-'));
   const binary = join(dir, 'downloader.mjs');
   const input = join(dir, 'source.wav');
@@ -20,7 +21,7 @@ test('imports decoded audio, rejects invalid upstreams and cleans temporary file
     await writeFile(binary, `#!${process.execPath}
 import {copyFile,writeFile,truncate} from 'node:fs/promises';
 const args=process.argv.slice(2), mode=process.env.SOUNDPAD_YOUTUBE_FIXTURE;
-if(mode==='blocked'){console.error('Sign in to confirm you are not a bot');process.exit(1);}
+if(mode==='blocked'){console.error('Sign in to confirm you are not a bot https://example.test/?token=private-fixture-value');process.exit(1);}
 if(mode==='hang'){await new Promise(r=>setTimeout(r,30000));}
 if(args.includes('--dump-single-json')) console.log(JSON.stringify({title:'เดนโอ / Sword',duration:mode==='long'?1801:mode==='unknown'?null:2,is_live:mode==='live'}));
 else {const output=args[args.indexOf('--output')+1];await copyFile(${JSON.stringify(input)},output);if(mode==='large')await truncate(output,50000001);await writeFile(${JSON.stringify(join(dir, 'last-path'))},output);}
@@ -51,6 +52,12 @@ else {const output=args[args.indexOf('--output')+1];await copyFile(${JSON.string
       process.env.SOUNDPAD_YOUTUBE_FIXTURE = mode;
       await assert.rejects(importYouTube('https://youtu.be/3F4_A1gulWs', async () => assert.fail('invalid source was imported')));
     }
+    const failureLog = diagnostics.mock.calls.find((call) => call.arguments[0] === 'Soundpad YouTube downloader failed');
+    assert.ok(failureLog, 'log the downloader failure to diagnose the actual production boundary');
+    const diagnostic = failureLog.arguments[1] as { stage: string; stderr: string };
+    assert.equal(diagnostic.stage, 'metadata');
+    assert.match(diagnostic.stderr, /not a bot/);
+    assert.ok(!diagnostic.stderr.includes('private-fixture-value'), 'never log access-bearing URLs');
     delete process.env.SOUNDPAD_YOUTUBE_FIXTURE;
     await assert.rejects(importYouTube('https://youtu.be/3F4_A1gulWs', async (file) => {
       imported = file;

@@ -29,7 +29,12 @@ export async function importYouTube<T>(input: string, run: (source: string, titl
     } catch (error) {
       if (oversized.signal.aborted) throw new AudioError('เสียงต้นฉบับต้องมีขนาดไม่เกิน 50 MB');
       if (budget.aborted) throw new AudioError('การนำเข้าถูกยกเลิกหรือใช้เวลานานเกินไป ลองใหม่อีกครั้ง');
-      const failure = error as { code?: string; stderr?: string };
+      const failure = error as { code?: string | number; signal?: string; stderr?: string };
+      console.error('Soundpad YouTube downloader failed', {
+        stage: options.includes('--dump-single-json') ? 'metadata' : 'download',
+        code: failure.code, signal: failure.signal,
+        stderr: (failure.stderr ?? '').replace(/https?:\/\/\S+/g, '[URL]').slice(-3000),
+      });
       if (failure.code === 'ENOENT') throw new AudioError('ตัวนำเข้า YouTube ยังไม่พร้อม กรุณาให้ผู้ดูแลตั้งค่าตัวดาวน์โหลดบนเซิร์ฟเวอร์');
       if (/sign in|bot|403|po.token/i.test(failure.stderr ?? '')) {
         throw new AudioError('YouTube ปฏิเสธการดาวน์โหลดจากเซิร์ฟเวอร์นี้ ลองใหม่ภายหลังหรืออัปโหลดไฟล์เสียงแทน');

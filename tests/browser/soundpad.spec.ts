@@ -26,11 +26,28 @@ test('admin uploads, previews, publishes, re-trims and deletes; visitors filter 
   try {
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'วนซ้ำ', exact: true })).toHaveAttribute('aria-pressed', 'false', { timeout: 2000 });
+    await expect(page.getByRole('slider', { name: 'ระดับเสียง' })).toHaveValue('100', { timeout: 2000 });
     await Promise.all([
       exec('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'sine=f=440:d=8', '-c:a', 'pcm_s16le', files[0]]),
       exec('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'sine=f=660:d=8', '-c:a', 'aac', files[1]]),
     ]);
     const publicPage = await playback.newPage();
+    await publicPage.addInitScript(() => {
+      const connect = AudioNode.prototype.connect;
+      AudioNode.prototype.connect = function (this: AudioNode, ...args: unknown[]) {
+        if (this instanceof GainNode && args[0] instanceof AudioDestinationNode) {
+          const analyser = this.context.createAnalyser();
+          this.connect(analyser);
+          const samples = new Float32Array(analyser.fftSize);
+          Object.assign(window, { soundpadPeak: () => {
+            analyser.getFloatTimeDomainData(samples);
+            return Math.max(...samples);
+          } });
+        }
+        return Reflect.apply(connect, this, args);
+      };
+    });
+    const peak = () => publicPage.evaluate(() => (window as Window & { soundpadPeak?: () => number }).soundpadPeak?.() ?? 0);
     await page.goto('/admin');
     await expect(page).toHaveURL(/\/admin\/login$/);
     await page.getByLabel('ชื่อผู้ใช้').fill(username!);
@@ -80,6 +97,17 @@ test('admin uploads, previews, publishes, re-trims and deletes; visitors filter 
     await expect(repeat).toHaveAttribute('aria-pressed', 'true');
     await padA.tap();
     await expect(padA).toHaveAttribute('data-status', 'playing');
+    await expect.poll(peak).toBeGreaterThan(0.01);
+    const fullVolume = await peak();
+    const volume = publicPage.getByRole('slider', { name: 'ระดับเสียง' });
+    const slider = (await volume.boundingBox())!;
+    await volume.tap({ position: { x: slider.width / 2, y: slider.height / 2 } });
+    const selectedVolume = Number(await volume.inputValue());
+    expect(selectedVolume).toBeGreaterThanOrEqual(45);
+    expect(selectedVolume).toBeLessThanOrEqual(55);
+    await expect.poll(async () => (await peak()) / fullVolume).toBeCloseTo(selectedVolume / 100, 1);
+    await volume.press('Home');
+    await expect.poll(peak).toBe(0);
     const originalClip = await player.getAttribute('src');
     await expect.poll(() => player.evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeGreaterThan(0.4);
     await player.evaluate((audio: HTMLAudioElement) => { audio.currentTime = audio.duration - 0.15; });
@@ -95,6 +123,10 @@ test('admin uploads, previews, publishes, re-trims and deletes; visitors filter 
     await expect.poll(() => player.evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeLessThan(0.4);
     await padB.tap();
     await expect(padB).toHaveAttribute('data-status', 'playing');
+    await expect(volume).toHaveValue('0');
+    await expect.poll(peak).toBe(0);
+    await volume.press('End');
+    await expect.poll(peak).toBeGreaterThan(0.01);
     await expect(padA).not.toHaveAttribute('data-status', 'playing');
     expect(await publicPage.locator('audio').evaluateAll((players) =>
       players.filter((audio) => !(audio as HTMLAudioElement).paused).length)).toBe(1);

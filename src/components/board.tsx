@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AudioLines, CircleAlert, Play, Repeat2, Square } from 'lucide-react';
 import { formatTime, type Category, type Pad } from '@/lib/sound';
 
@@ -9,14 +9,27 @@ type Playback = { pad: Pad; status: 'loading' | 'playing' | 'error' };
 
 export function Board({ categories, pads, unavailable }: { categories: Category[]; pads: Pad[]; unavailable: boolean }) {
   const player = useRef<HTMLAudioElement>(null);
+  const output = useRef<{ context: AudioContext; level: GainNode }>(null);
   const request = useRef(0);
   const [category, setCategory] = useState('');
   const [playback, setPlayback] = useState<Playback | null>(null);
   const [progress, setProgress] = useState(0);
   const [loop, setLoop] = useState(false);
+  const [volume, setVolume] = useState(100);
   const visible = category ? pads.filter((pad) => pad.categoryId === category) : pads;
   const categoryById = new Map(categories.map((item, index) => [item.id, { ...item, tone: tones[index % tones.length] }]));
   const isActive = Boolean(playback && playback.status !== 'error');
+
+  useEffect(() => {
+    // Preserve the media playback category when routing through Web Audio on iOS.
+    const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+    const previousType = session?.type;
+    if (session) session.type = 'playback';
+    return () => {
+      void output.current?.context.close();
+      if (session && previousType) session.type = previousType;
+    };
+  }, []);
 
   function stop() {
     request.current++;
@@ -33,13 +46,20 @@ export function Board({ categories, pads, unavailable }: { categories: Category[
   function play(pad: Pad) {
     const audio = player.current;
     if (!audio) return;
+    if (!output.current) {
+      const context = new AudioContext();
+      const level = context.createGain();
+      level.gain.value = volume / 100;
+      context.createMediaElementSource(audio).connect(level).connect(context.destination);
+      output.current = { context, level };
+    }
     const id = ++request.current;
     audio.pause();
     setProgress(0);
     setPlayback({ pad, status: 'loading' });
     if (audio.src === pad.url && audio.readyState > 0 && !audio.error) audio.currentTime = 0;
     else audio.src = pad.url;
-    void audio.play().then(
+    void Promise.all([output.current.context.resume(), audio.play()]).then(
       () => { if (request.current === id) setPlayback({ pad, status: 'playing' }); },
       () => { if (request.current === id) setPlayback({ pad, status: 'error' }); },
     );
@@ -47,7 +67,7 @@ export function Board({ categories, pads, unavailable }: { categories: Category[
 
   return (
     <>
-      <audio ref={player} preload="none" loop={loop}
+      <audio ref={player} crossOrigin="anonymous" preload="none" loop={loop}
         onEnded={(event) => { if (event.currentTarget.ended) stop(); }}
         onTimeUpdate={(event) => {
           if (playback?.status === 'playing') {
@@ -68,7 +88,7 @@ export function Board({ categories, pads, unavailable }: { categories: Category[
             <span className="deck-status">{playback?.status === 'error' ? 'เล่นไม่สำเร็จ' :
               playback?.status === 'loading' ? 'กำลังโหลดเสียง' :
               playback ? (loop ? 'กำลังเล่นวนซ้ำ' : 'กำลังเล่น') : 'พร้อมเล่น'}</span>
-            <p>{playback?.pad.name ?? 'แตะแพดเพื่อเล่นเสียง'}</p>
+            <p>{playback?.pad.name ?? 'แตะแพดเพื่อเล่น'}</p>
             {playback?.status === 'error' && <button className="text-button" type="button" onClick={() => window.location.reload()}>โหลดคลังใหม่</button>}
           </div>
         </div>
@@ -81,6 +101,16 @@ export function Board({ categories, pads, unavailable }: { categories: Category[
             <Square size={15} fill="currentColor" aria-hidden="true" /> หยุด
           </button>
         </div>
+        <label className="deck-volume">
+          <span>ระดับเสียง</span>
+          <input type="range" min={0} max={100} value={volume} aria-valuetext={`${volume}%`}
+            onChange={(event) => {
+              const value = event.currentTarget.valueAsNumber;
+              if (output.current) output.current.level.gain.value = value / 100;
+              setVolume(value);
+            }} />
+          <span className="deck-volume-value" aria-hidden="true">{volume}%</span>
+        </label>
         <div className="deck-progress" aria-hidden="true"><span style={{ width: `${progress * 100}%` }} /></div>
       </section>
 
